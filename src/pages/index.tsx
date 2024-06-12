@@ -7,7 +7,6 @@ import {
 import { ethers } from "ethers";
 import { Web3Auth } from "@web3auth/modal";
 import { CHAIN_NAMESPACES } from "@web3auth/base";
-import { contractABI } from "../contract/contractABI";
 import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
@@ -17,7 +16,7 @@ export default function Home() {
   const [smartAccountAddress, setSmartAccountAddress] = useState<string | null>(
     null
   );
-  const [count, setCount] = useState<string | null>(null);
+
   const [txnHash, setTxnHash] = useState<string | null>(null);
   const [chainSelected, setChainSelected] = useState<number>(0);
 
@@ -27,7 +26,7 @@ export default function Home() {
       name: "Ethereum Sepolia",
       providerUrl: "https://eth-sepolia.public.blastapi.io",
       incrementCountContractAdd: "0xd9ea570eF1378D7B52887cE0342721E164062f5f",
-      biconomyPaymasterApiKey: "gJdVIBMSe.f6cc87ea-e351-449d-9736-c04c6fab56a2",
+      biconomyPaymasterApiKey: "svm8Q3EYT.e33d2271-16ea-4c96-8c94-ec23fc55d461",
       explorerUrl: "https://sepolia.etherscan.io/tx/",
     },
     {
@@ -66,7 +65,7 @@ export default function Home() {
       //Creating web3auth instance
       const web3auth = new Web3Auth({
         clientId:
-          "BExrkk4gXp86e9VCrpxpjQYvmojRSKHstPRczQA10UQM94S5FtsZcxx4Cg5zk58F7W1cAGNVx1-NPJCTFIzqdbs", // Get your Client ID from the Web3Auth Dashboard https://dashboard.web3auth.io/
+          "BOxiJjV615qDs3amXlN2Hp_2aXxGdzE7Jy4nCQ0cNVrAM84XxIMtMxOoBqJefZkoztNREKtIZUcy_eZiys1ZUbE", // Get your Client ID from the Web3Auth Dashboard https://dashboard.web3auth.io/
         web3AuthNetwork: "sapphire_devnet", // Web3Auth Network
         chainConfig,
         uiConfig: {
@@ -111,64 +110,77 @@ export default function Home() {
     }
   };
 
-  const getCountId = async () => {
-    const contractAddress = chains[chainSelected].incrementCountContractAdd;
-    const provider = new ethers.providers.JsonRpcProvider(
-      chains[chainSelected].providerUrl
-    );
-    const contractInstance = new ethers.Contract(
-      contractAddress,
-      contractABI,
-      provider
-    );
-    const countId = await contractInstance.getCount();
-    setCount(countId.toString());
+  const sendSponsoredTxn = async () => {
+    const toAddress = "0x884B2d521067b69B5cAD884b91F9432b242EECCf"; // Replace with the recipient's address
+    const transactionData = "0x123"; // Replace with the actual transaction data
+
+    // Build the transaction
+    const tx = {
+      to: toAddress,
+      data: transactionData,
+    };
+    // Send the transaction and get the transaction hash
+    //@ts-ignore
+    const userOpResponse = await smartAccount?.sendTransaction(tx, {
+      paymasterServiceData: { mode: PaymasterMode.SPONSORED },
+    });
+    const toastId = toast("Txn send");
+    //@ts-ignore
+    const { transactionHash } = await userOpResponse.waitForTxHash();
+    console.log("Transaction Hash", transactionHash);
+
+    if (transactionHash) {
+      toast.update(toastId, {
+        render: "Transaction Successful",
+        type: "success",
+        autoClose: 5000,
+      });
+      setTxnHash(transactionHash);
+    }
+    const userOpReceipt = await userOpResponse?.wait();
+    if (userOpReceipt?.success == "true") {
+      toast.update(toastId, {
+        render: "Transaction Successful",
+        type: "success",
+        autoClose: 5000,
+      });
+      console.log("UserOp receipt", userOpReceipt);
+      console.log("Transaction receipt", userOpReceipt.receipt);
+    }
   };
 
-  const incrementCount = async () => {
-    try {
-      const toastId = toast("Populating Transaction", { autoClose: false });
+  const sendBatchTxs = async () => {
+    const toAddress = "0x884B2d521067b69B5cAD884b91F9432b242EECCf";
 
-      const contractAddress = chains[chainSelected].incrementCountContractAdd;
-      const provider = new ethers.providers.JsonRpcProvider(
-        chains[chainSelected].providerUrl
-      );
-      const contractInstance = new ethers.Contract(
-        contractAddress,
-        contractABI,
-        provider
-      );
-      const minTx = await contractInstance.populateTransaction.increment();
-      console.log("Mint Tx Data", minTx.data);
-      const tx1 = {
-        to: contractAddress,
-        data: minTx.data,
-      };
+    // Generate a random number between 2 and 5
+    const randomLength = Math.floor(Math.random() * 9) + 2;
 
+    const txs = Array.from({ length: randomLength }, (_, index) => ({
+      to: toAddress,
+      data: `0x${index.toString()}`,
+    }));
+    // Send the transaction and get the transaction hash
+    //@ts-ignore
+    const userOpResponse = await smartAccount?.sendTransaction(txs, {
+      paymasterServiceData: { mode: PaymasterMode.SPONSORED },
+    });
+
+    const toastId = toast(`${randomLength} Txs send`);
+    //@ts-ignore
+    const { transactionHash } = await userOpResponse.waitForTxHash();
+    if (transactionHash) {
       toast.update(toastId, {
-        render: "Sending Transaction",
-        autoClose: false,
+        render: "Transaction Successful",
+        type: "success",
+        autoClose: 5000,
       });
-      //@ts-ignore
-      const userOpResponse = await smartAccount?.sendTransaction(tx1, {
-        paymasterServiceData: { mode: PaymasterMode.SPONSORED },
-      });
-      //@ts-ignore
-      const { transactionHash } = await userOpResponse.waitForTxHash();
-      console.log("Transaction Hash", transactionHash);
-
-      if (transactionHash) {
-        toast.update(toastId, {
-          render: "Transaction Successful",
-          type: "success",
-          autoClose: 5000,
-        });
-        setTxnHash(transactionHash);
-        await getCountId();
-      }
-    } catch (error) {
-      console.log(error);
-      toast.error("Transaction Unsuccessful", { autoClose: 5000 });
+      setTxnHash(transactionHash);
+    }
+    console.log("Transaction Hash", transactionHash);
+    const userOpReceipt = await userOpResponse?.wait();
+    if (userOpReceipt?.success == "true") {
+      console.log("UserOp receipt", userOpReceipt);
+      console.log("Transaction receipt", userOpReceipt.receipt);
     }
   };
 
@@ -219,19 +231,16 @@ export default function Home() {
           <div className="flex flex-row justify-between items-start gap-8">
             <div className="flex flex-col justify-center items-center gap-4">
               <button
-                className="w-[10rem] h-[3rem] bg-orange-300 text-black font-bold rounded-lg"
-                onClick={getCountId}
+                className="w-[16rem] h-[3rem] bg-orange-300 text-black font-bold rounded-lg"
+                onClick={sendSponsoredTxn}
               >
-                Get Count Id
+                Send Sponsored Txn
               </button>
-              <span>{count}</span>
-            </div>
-            <div className="flex flex-col justify-center items-center gap-4">
               <button
-                className="w-[10rem] h-[3rem] bg-orange-300 text-black font-bold rounded-lg"
-                onClick={incrementCount}
+                className="w-[16rem] h-[3rem] bg-orange-300 text-black font-bold rounded-lg"
+                onClick={sendBatchTxs}
               >
-                Increment Count
+                Send Batch Txs
               </button>
               {txnHash && (
                 <a
